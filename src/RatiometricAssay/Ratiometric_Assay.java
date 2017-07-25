@@ -16,30 +16,34 @@
  */
 package RatiometricAssay;
 
+import MetaData.ParamsReader;
 import Profile.PeakFinder;
 import UtilClasses.GenUtils;
 import UtilClasses.GenVariables;
 import UtilClasses.Utilities;
 import ij.IJ;
+import ij.ImagePlus;
 import ij.ImageStack;
+import ij.gui.GenericDialog;
+import ij.plugin.LutLoader;
 import ij.plugin.PlugIn;
 import ij.process.Blitter;
 import ij.process.FloatBlitter;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
+import ij.process.LUT;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 
 public class Ratiometric_Assay implements PlugIn {
 
-    private final String title = "Rationmetric Assay Analyser";
+    private final String title = "Rationmetric Assay Analyser", um = String.format("%c%c", IJ.micronSymbol, 'm');
+    private static double spatialRes, timeRes;
 
     public static void main(String args[]) {
         Ratiometric_Assay instance = new Ratiometric_Assay();
@@ -48,12 +52,23 @@ public class Ratiometric_Assay implements PlugIn {
     }
 
     public void run(String arg) {
-        ImageStack stack1 = IJ.openImage().getImageStack();
-        ImageStack stack2 = IJ.openImage().getImageStack();
+        ImageStack stack1, stack2;
+        if (IJ.getInstance() == null) {
+            stack1 = IJ.openImage().getImageStack();
+            stack2 = IJ.openImage().getImageStack();
+        } else {
+            ImagePlus[] imps = GenUtils.specifyInputs(new String[]{"Stack 1", "Stack 2"});
+            readParamsFromImage(imps[0]);
+            stack1 = imps[0].getImageStack();
+            stack2 = imps[1].getImageStack();
+        }
         if (stack1.size() != stack2.size()
                 || stack1.getWidth() != stack2.getWidth()
                 || stack1.getHeight() != stack2.getHeight()) {
             GenUtils.error("Stack dimensions must match.");
+            return;
+        }
+        if (!showDialog()) {
             return;
         }
         String resultsDir;
@@ -75,6 +90,17 @@ public class Ratiometric_Assay implements PlugIn {
             (new FloatBlitter(outSlice)).copyBits(slice2, 0, 0, Blitter.DIVIDE);
             output.addSlice(outSlice);
         }
+        ImagePlus outputImp = new ImagePlus("Ratiometric Output", output);
+        outputImp.resetDisplayRange();
+        LUT sixteenColors;
+        if (IJ.getInstance() != null) {
+            sixteenColors = LutLoader.openLut(String.format("%s%s%s%s", IJ.getDirectory("imagej"), "luts", File.separator, "16_colors.lut"));
+        } else {
+            sixteenColors = LutLoader.openLut("C:\\Users\\barryd\\fiji-nojre\\Fiji.app\\luts\\16_colors.lut");
+        }
+        outputImp.setLut(sixteenColors);
+        outputImp.show();
+        IJ.saveAs(outputImp, "TIF", String.format("%s%s%s", resultsDir, File.separator, "output.tif"));
         try {
             double[][] data = compressSlices(output, resultsDir);
             plotProfilePoints(data, resultsDir);
@@ -110,76 +136,38 @@ public class Ratiometric_Assay implements PlugIn {
     void plotProfilePoints(double[][] data, String dir) throws IOException, FileNotFoundException {
         File output = new File(String.format("%s%s%s", dir, File.separator, "ProfilePoints.csv"));
         CSVPrinter printer = new CSVPrinter(new OutputStreamWriter(new FileOutputStream(output), GenVariables.ISO), CSVFormat.EXCEL);
-        printer.printRecord("Scratch", "Peak", "Edge");
+        printer.printRecord("Time (s)", "Scratch Position " + um, "Peak Position" + um, "Edge Position " + um);
         for (int i = 0; i < data.length; i++) {
+            printer.print(i * timeRes);
             int[] indices = PeakFinder.findMaxAndSides(data[i], 10.0);
-            Integer[]  ii = new Integer[indices.length];
-            for(int j=0;j<indices.length;j++){
-                ii[j]=indices[j];
+            for (int j = 0; j < indices.length; j++) {
+                printer.print(indices[j] * spatialRes);
             }
-            printer.printRecord(Arrays.asList(ii));
+            printer.println();
         }
         printer.close();
     }
-}
 
-//folder_name1 = uigetdir(pwd,'Select Folder 1');
-//folder_name2 = uigetdir(pwd,'Select Folder 2');
-//
-//list1 = dir(folder_name1);
-//list2 = dir(folder_name2);
-//
-//N1 = size(list1);
-//N2 = size(list2);
-//
-//if(N1 ~= N2)
-//    print('Channels must contain equal numbers of images.');
-//end
-//
-//init = false;
-//
-//for f=1:N1
-//    [pathstr1,name1,ext1] = fileparts(list1(f).name);
-//    [pathstr2,name2,ext2] = fileparts(list2(f).name);
-//    if(strcmp(ext1,'.tif') || strcmp(ext1, '.tiff'))        
-//        file1 = strcat(folder_name1, filesep ,list1(f).name);
-//        info1 = imfinfo(file1);
-//        num_images1 = numel(info1);
-//
-//        file2 = strcat(folder_name2, filesep ,list2(f).name);
-//        info2 = imfinfo(file2);
-//        num_images2 = numel(info2);
-//
-//        if(num_images1 ~= num_images2)
-//            print('Channels must contain equal numbers of images.');
-//        end
-//
-//        timeRes = 300.0 / 60.0;
-//        height = info1.Height;
-//        width = info1.Width;
-//        res = info1.XResolution;
-//        X = (0:1:width-1) / res;
-//        Y = (0:1:num_images1-1) * timeRes;
-//
-//        for i=1:num_images1
-//            image1 = double(imread(file1,i));
-//            image2 = double(imread(file2,i));
-//            for y=1:height
-//                for x=1:width
-//                    ratios(i,y,x) = image1(y,x) / image2(y,x);
-//                end
-//            end
-//        end
-//        if(~init)
-//            sumratios = zeros(num_images1, width);
-//            init=true;
-//        end
-//        for i=1:num_images1
-//            for y=1:height
-//                for x=1:width
-//                    sumratios(i,x) = sumratios(i,x) + ratios(i,y,x);
-//                end
-//            end
-//        end
-//    end
-//end
+    boolean showDialog() {
+        GenericDialog gd = new GenericDialog(title);
+        gd.addNumericField("Spatial Resolution:", spatialRes, 3, 5, um);
+        gd.addNumericField("Frame Interval:", timeRes, 3, 5, "seconds");
+        gd.showDialog();
+        if (gd.wasCanceled()) {
+            return false;
+        }
+        spatialRes = gd.getNextNumber();
+        timeRes = gd.getNextNumber();
+        if (gd.wasOKed()) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    void readParamsFromImage(ImagePlus imp) {
+        ParamsReader reader = new ParamsReader(imp);
+        spatialRes = reader.getSpatialRes();
+        timeRes = reader.getFrameRate();
+    }
+}
