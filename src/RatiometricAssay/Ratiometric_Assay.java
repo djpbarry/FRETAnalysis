@@ -140,9 +140,13 @@ public class Ratiometric_Assay implements PlugIn {
         printer.printRecord("Time (s)", "Scratch Position " + um, "Peak Position" + um, "Edge Position " + um);
         for (int i = 0; i < data.length; i++) {
             printer.print(i * timeRes);
-            int[] indices = PeakFinder.findMaxAndSides(data[i], 10.0);
+            int[] indices = PeakFinder.findMaxAndSides(PeakFinder.smoothData(data[i], 10.0));
             for (int j = 0; j < indices.length; j++) {
-                printer.print(indices[j] * spatialRes);
+                if (indices[j] > 0) {
+                    printer.print(indices[j] * spatialRes);
+                } else {
+                    printer.print("not found");
+                }
             }
             printer.println();
         }
