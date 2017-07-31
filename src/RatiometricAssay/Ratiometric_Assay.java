@@ -108,6 +108,7 @@ public class Ratiometric_Assay implements PlugIn {
             GenUtils.error(e.toString());
             return;
         }
+        IJ.showStatus(String.format("%s done.", title));
     }
 
     double[][] compressSlices(ImageStack stack, String dir) throws IOException, FileNotFoundException {
