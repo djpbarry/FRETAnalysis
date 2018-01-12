@@ -16,7 +16,6 @@
  */
 package RatiometricAssay;
 
-import MacroWriter.MacroWriter;
 import MetaData.ParamsReader;
 import Profile.PeakFinder;
 import UtilClasses.GenUtils;
@@ -53,7 +52,7 @@ public class Ratiometric_Assay implements PlugIn {
     }
 
     public void run(String arg) {
-        MacroWriter.write();
+//        MacroWriter.write();
         ImageStack stack1, stack2;
         if (IJ.getInstance() == null) {
             stack1 = IJ.openImage().getImageStack();
