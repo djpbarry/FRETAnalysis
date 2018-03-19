@@ -16,6 +16,9 @@
  */
 package RatiometricAssay;
 
+import Binary.BinaryMaker;
+import Binary.EDMMaker;
+import ImageProcessing.ImageBlurrer;
 import MetaData.ParamsReader;
 import Profile.PeakFinder;
 import UtilClasses.GenUtils;
@@ -27,11 +30,15 @@ import ij.ImageStack;
 import ij.gui.GenericDialog;
 import ij.plugin.LutLoader;
 import ij.plugin.PlugIn;
+import ij.process.AutoThresholder;
 import ij.process.Blitter;
+import ij.process.ByteProcessor;
 import ij.process.FloatBlitter;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.LUT;
+import ij.process.ShortProcessor;
+import ij.process.StackStatistics;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -53,7 +60,7 @@ public class Ratiometric_Assay implements PlugIn {
 
     public void run(String arg) {
 //        MacroWriter.write();
-        ImageStack stack1, stack2;
+        ImageStack stack1, stack2, edmStack = null;
         if (IJ.getInstance() == null) {
             stack1 = IJ.openImage().getImageStack();
             stack2 = IJ.openImage().getImageStack();
@@ -82,6 +89,7 @@ public class Ratiometric_Assay implements PlugIn {
             GenUtils.error(e.toString());
             return;
         }
+        edmStack = makeEDMStack(stack1.duplicate(), resultsDir);
         ImageStack output = new ImageStack(stack1.getWidth(), stack1.getHeight());
         int n = stack1.getSize();
         for (int i = 1; i <= n; i++) {
@@ -103,13 +111,22 @@ public class Ratiometric_Assay implements PlugIn {
         outputImp.show();
         IJ.saveAs(outputImp, "TIF", String.format("%s%s%s", resultsDir, File.separator, "output.tif"));
         try {
-            double[][] data = compressSlices(output, resultsDir);
+            double[][] data = indexWithDistanceMap(output, edmStack, resultsDir);
             plotProfilePoints(data, resultsDir);
         } catch (Exception e) {
             GenUtils.error(e.toString());
             return;
         }
         IJ.showStatus(String.format("%s done.", title));
+    }
+
+    ImageStack makeEDMStack(ImageStack input, String directory) {
+        int n = input.size();
+        ImageStack output = new ImageStack(input.getWidth(), input.getHeight());
+        ImageBlurrer.blurStack(input, 10.0);
+        output = EDMMaker.makeEDM(BinaryMaker.makeBinaryStack(new ImagePlus("", input), AutoThresholder.Method.Huang));
+        IJ.saveAs(new ImagePlus("", output), "TIF", String.format("%s%s%s", directory, File.separator, "EDM"));
+        return output;
     }
 
     double[][] compressSlices(ImageStack stack, String dir) throws IOException, FileNotFoundException {
@@ -135,13 +152,42 @@ public class Ratiometric_Assay implements PlugIn {
         return data;
     }
 
+    double[][] indexWithDistanceMap(ImageStack stack, ImageStack edmStack, String dir) throws IOException, FileNotFoundException {
+        File output = new File(String.format("%s%s%s", dir, File.separator, "Map.csv"));
+        CSVPrinter printer = new CSVPrinter(new OutputStreamWriter(new FileOutputStream(output), GenVariables.ISO), CSVFormat.EXCEL);
+        int n = stack.size();
+        StackStatistics stats = new StackStatistics(new ImagePlus("", edmStack));
+        int maxDist = (int) Math.round(stats.max);
+        int width = stack.getWidth();
+        int height = stack.getHeight();
+        int imArea = width * height;
+        double[][] data = new double[n][maxDist + 1];
+        for (int i = 1; i <= n; i++) {
+            ImageProcessor slice = stack.getProcessor(i).convertToFloatProcessor();
+            slice.multiply(1.0 / imArea);
+            ImageProcessor edmSlice = edmStack.getProcessor(i);
+            for (int x = 0; x < width; x++) {
+                for (int y = 0; y < height; y++) {
+                    int edmDist = (int) Math.round(edmSlice.getPixelValue(x, y));
+                    data[i - 1][edmDist] = slice.getPixelValue(x, y);
+                }
+            }
+            for (int j = 0; j < maxDist; j++) {
+                printer.print(String.valueOf(data[i - 1][j]));
+            }
+            printer.println();
+        }
+        printer.close();
+        return data;
+    }
+
     void plotProfilePoints(double[][] data, String dir) throws IOException, FileNotFoundException {
         File output = new File(String.format("%s%s%s", dir, File.separator, "ProfilePoints.csv"));
         CSVPrinter printer = new CSVPrinter(new OutputStreamWriter(new FileOutputStream(output), GenVariables.ISO), CSVFormat.EXCEL);
         printer.printRecord("Time (s)", "Scratch Position " + um, "Peak Position" + um, "Edge Position " + um);
         for (int i = 0; i < data.length; i++) {
             printer.print(i * timeRes);
-            int[] indices = PeakFinder.findMaxAndSides(PeakFinder.smoothData(data[i], 10.0));
+            int[] indices = PeakFinder.findMaxAndSides(PeakFinder.smoothData(data[i], 2.0));
             for (int j = 0; j < indices.length; j++) {
                 if (indices[j] > 0) {
                     printer.print(indices[j] * spatialRes);
