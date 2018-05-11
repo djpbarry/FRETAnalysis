@@ -28,16 +28,17 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.GenericDialog;
+import ij.gui.Plot;
 import ij.plugin.LutLoader;
 import ij.plugin.PlugIn;
 import ij.process.AutoThresholder;
 import ij.process.Blitter;
+import ij.process.ByteBlitter;
 import ij.process.ByteProcessor;
 import ij.process.FloatBlitter;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.LUT;
-import ij.process.ShortProcessor;
 import ij.process.StackStatistics;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -46,11 +47,12 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 public class Ratiometric_Assay implements PlugIn {
 
-    private final String title = "Rationmetric Assay Analyser", um = String.format("%c%c", IJ.micronSymbol, 'm');
-    private static double spatialRes, timeRes;
+    private final String title = "Ratiometric Assay Analyser", um = String.format("%c%c", IJ.micronSymbol, 'm');
+    private static double spatialRes, timeRes, threshold = 0.5;
 
     public static void main(String args[]) {
         Ratiometric_Assay instance = new Ratiometric_Assay();
@@ -90,6 +92,7 @@ public class Ratiometric_Assay implements PlugIn {
             return;
         }
         edmStack = makeEDMStack(stack1.duplicate(), resultsDir);
+        plotVelocities(estimateVelocity(edmStack));
         ImageStack output = new ImageStack(stack1.getWidth(), stack1.getHeight());
         int n = stack1.getSize();
         for (int i = 1; i <= n; i++) {
@@ -105,7 +108,7 @@ public class Ratiometric_Assay implements PlugIn {
         if (IJ.getInstance() != null) {
             sixteenColors = LutLoader.openLut(String.format("%s%s%s%s", IJ.getDirectory("imagej"), "luts", File.separator, "16_colors.lut"));
         } else {
-            sixteenColors = LutLoader.openLut("C:\\Users\\barryd\\fiji-nojre\\Fiji.app\\luts\\16_colors.lut");
+            sixteenColors = LutLoader.openLut("C:\\Users\\barryd\\FIJI\\DEV\\Fiji.app\\luts\\16_colors.lut");
         }
         outputImp.setLut(sixteenColors);
         outputImp.show();
@@ -121,10 +124,10 @@ public class Ratiometric_Assay implements PlugIn {
     }
 
     ImageStack makeEDMStack(ImageStack input, String directory) {
-        int n = input.size();
         ImageStack output = new ImageStack(input.getWidth(), input.getHeight());
-        ImageBlurrer.blurStack(input, 10.0);
-        output = EDMMaker.makeEDM(BinaryMaker.makeBinaryStack(new ImagePlus("", input), AutoThresholder.Method.Huang));
+        ImageBlurrer.blurStack(input, 1.0);
+        ImageStack binary = BinaryMaker.makeBinaryStack(new ImagePlus("", input), AutoThresholder.Method.Triangle, -1);
+        output = EDMMaker.makeEDM(binary);
         IJ.saveAs(new ImagePlus("", output), "TIF", String.format("%s%s%s", directory, File.separator, "EDM"));
         return output;
     }
@@ -184,16 +187,21 @@ public class Ratiometric_Assay implements PlugIn {
     void plotProfilePoints(double[][] data, String dir) throws IOException, FileNotFoundException {
         File output = new File(String.format("%s%s%s", dir, File.separator, "ProfilePoints.csv"));
         CSVPrinter printer = new CSVPrinter(new OutputStreamWriter(new FileOutputStream(output), GenVariables.ISO), CSVFormat.EXCEL);
-        printer.printRecord("Time (s)", "Scratch Position " + um, "Peak Position" + um, "Edge Position " + um);
+        printer.printRecord("Time (s)", "x1 " + um, "x2 " + um, "Width " + um);
+        double[][] smoothedData = PeakFinder.smoothData(data, 20.0);
+        double[] extrema = PeakFinder.findMinAndMax(smoothedData);
         for (int i = 0; i < data.length; i++) {
             printer.print(i * timeRes);
-            int[] indices = PeakFinder.findMaxAndSides(PeakFinder.smoothData(data[i], 2.0));
+            int[] indices = PeakFinder.findRegionWidth(smoothedData[i], threshold, extrema[0], extrema[1]);
             for (int j = 0; j < indices.length; j++) {
                 if (indices[j] > 0) {
                     printer.print(indices[j] * spatialRes);
                 } else {
                     printer.print("not found");
                 }
+            }
+            if (indices[0] > 0 && indices[1] > 0) {
+                printer.print((indices[1] - indices[0]) * spatialRes);
             }
             printer.println();
         }
@@ -204,12 +212,14 @@ public class Ratiometric_Assay implements PlugIn {
         GenericDialog gd = new GenericDialog(title);
         gd.addNumericField("Spatial Resolution:", spatialRes, 3, 5, um);
         gd.addNumericField("Frame Interval:", timeRes, 3, 5, "seconds");
+        gd.addNumericField("Active Threshold:", threshold, 3, 5, "");
         gd.showDialog();
         if (gd.wasCanceled()) {
             return false;
         }
         spatialRes = gd.getNextNumber();
         timeRes = gd.getNextNumber();
+        threshold = gd.getNextNumber();
         if (gd.wasOKed()) {
             return true;
         } else {
@@ -221,5 +231,36 @@ public class Ratiometric_Assay implements PlugIn {
         ParamsReader reader = new ParamsReader(imp);
         spatialRes = reader.getSpatialRes();
         timeRes = reader.getFrameRate();
+    }
+
+    private double[] estimateVelocity(ImageStack edm) {
+        ImageStack binaryStack = BinaryMaker.makeBinaryStack(new ImagePlus("", edm.duplicate()), null, 1);
+        int size = binaryStack.size();
+        double[] vels = new double[size];
+        vels[0] = 0.0;
+        SummaryStatistics stats = new SummaryStatistics();
+        for (int i = 2; i <= size - 1; i++) {
+            ByteProcessor slice1 = (ByteProcessor) binaryStack.getProcessor(i - 1).duplicate();
+            ByteProcessor slice2 = (ByteProcessor) binaryStack.getProcessor(i + 1).duplicate();
+            ByteBlitter blitter = new ByteBlitter(slice2);
+            blitter.copyBits(slice1, 0, 0, Blitter.DIFFERENCE);
+            double area = slice2.getStatistics().histogram[255];
+            ImageProcessor edmslice = edm.getProcessor(i);
+            double perim = edmslice.getStatistics().histogram[1];
+            vels[i - 1] = (spatialRes * area) / (2.0 * perim * timeRes); // Divide by 2 because velocties are calculated over two frame intervals
+            stats.addValue(vels[i - 1]);
+        }
+        vels[size - 1] = vels[size - 2];
+        IJ.log(String.format("Estimated mean cell velocity: %f %s", stats.getMean(), um));
+        return vels;
+    }
+
+    private void plotVelocities(double[] velocities) {
+        double[] timePoints = new double[velocities.length];
+        for (int i = 0; i < velocities.length; i++) {
+            timePoints[i] = i * timeRes;
+        }
+        Plot plot = new Plot("Instantaneous Velocities", "Time", "Instantaneous Velocity", timePoints, velocities);
+        plot.show();
     }
 }
