@@ -30,7 +30,6 @@ import ij.ImageStack;
 import ij.gui.GenericDialog;
 import ij.gui.Plot;
 import ij.plugin.LutLoader;
-import ij.plugin.PlugIn;
 import ij.process.AutoThresholder;
 import ij.process.Blitter;
 import ij.process.ByteBlitter;
@@ -48,36 +47,28 @@ import java.io.OutputStreamWriter;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import ui.SegUI;
 
-public class Ratiometric_Assay implements PlugIn {
+public class Ratiometric_Assay {
 
     private final String title = "Ratiometric Assay Analyser", um = String.format("%c%c", IJ.micronSymbol, 'm');
     private static double spatialRes, timeRes, threshold = 0.5;
+    public static final String[] THRESH_METHODS = AutoThresholder.getMethods();
+    private static String threshMethod = AutoThresholder.Method.Triangle.toString();
+    private static double maskBlurRadius = 1.0;
+    private static double sigBlurRadius = 20.0;
+    private static int holeSize = 10;
 
     public static void main(String args[]) {
-        Ratiometric_Assay instance = new Ratiometric_Assay();
-        instance.run(null);
-        System.exit(0);
+
+        java.awt.EventQueue.invokeLater(new Runnable() {
+            public void run() {
+                new SegUI(maskBlurRadius, threshMethod, holeSize).setVisible(true);
+            }
+        });
     }
 
-    public void run(String arg) {
-//        MacroWriter.write();
-        ImageStack stack1, stack2, edmStack = null;
-        if (IJ.getInstance() == null) {
-            stack1 = IJ.openImage().getImageStack();
-            stack2 = IJ.openImage().getImageStack();
-        } else {
-            ImagePlus[] imps = GenUtils.specifyInputs(new String[]{"Stack 1", "Stack 2"});
-            readParamsFromImage(imps[0]);
-            stack1 = imps[0].getImageStack();
-            stack2 = imps[1].getImageStack();
-        }
-        if (stack1.size() != stack2.size()
-                || stack1.getWidth() != stack2.getWidth()
-                || stack1.getHeight() != stack2.getHeight()) {
-            GenUtils.error("Stack dimensions must match.");
-            return;
-        }
+    public void analyse(ImageStack stack1, ImageStack stack2) {
         if (!showDialog()) {
             return;
         }
@@ -91,7 +82,7 @@ public class Ratiometric_Assay implements PlugIn {
             GenUtils.error(e.toString());
             return;
         }
-        edmStack = makeEDMStack(stack1.duplicate(), resultsDir);
+        ImageStack edmStack = makeEDMStack(stack1.duplicate(), resultsDir);
         plotVelocities(estimateVelocity(edmStack));
         ImageStack output = new ImageStack(stack1.getWidth(), stack1.getHeight());
         int n = stack1.getSize();
@@ -123,11 +114,14 @@ public class Ratiometric_Assay implements PlugIn {
         IJ.showStatus(String.format("%s done.", title));
     }
 
+    public static ImageStack makeBinaryStack(ImageStack input, double maskBlurRadius, String threshMethod, int holeSize) {
+        ImageBlurrer.blurStack(input, maskBlurRadius);
+        return BinaryMaker.makeBinaryStack(new ImagePlus("", input), threshMethod, -1, holeSize);
+    }
+
     ImageStack makeEDMStack(ImageStack input, String directory) {
-        ImageStack output = new ImageStack(input.getWidth(), input.getHeight());
-        ImageBlurrer.blurStack(input, 1.0);
-        ImageStack binary = BinaryMaker.makeBinaryStack(new ImagePlus("", input), AutoThresholder.Method.Triangle, -1);
-        output = EDMMaker.makeEDM(binary);
+        ImageStack binary = makeBinaryStack(input, maskBlurRadius, threshMethod, holeSize);
+        ImageStack output = EDMMaker.makeEDM(binary);
         IJ.saveAs(new ImagePlus("", output), "TIF", String.format("%s%s%s", directory, File.separator, "EDM"));
         return output;
     }
@@ -188,7 +182,7 @@ public class Ratiometric_Assay implements PlugIn {
         File output = new File(String.format("%s%s%s", dir, File.separator, "ProfilePoints.csv"));
         CSVPrinter printer = new CSVPrinter(new OutputStreamWriter(new FileOutputStream(output), GenVariables.ISO), CSVFormat.EXCEL);
         printer.printRecord("Time (s)", "x1 " + um, "x2 " + um, "Width " + um);
-        double[][] smoothedData = PeakFinder.smoothData(data, 20.0);
+        double[][] smoothedData = PeakFinder.smoothData(data, sigBlurRadius);
         double[] extrema = PeakFinder.findMinAndMax(smoothedData);
         for (int i = 0; i < data.length; i++) {
             printer.print(i * timeRes);
@@ -234,7 +228,7 @@ public class Ratiometric_Assay implements PlugIn {
     }
 
     private double[] estimateVelocity(ImageStack edm) {
-        ImageStack binaryStack = BinaryMaker.makeBinaryStack(new ImagePlus("", edm.duplicate()), null, 1);
+        ImageStack binaryStack = BinaryMaker.makeBinaryStack(new ImagePlus("", edm.duplicate()), null, 1, holeSize);
         int size = binaryStack.size();
         double[] vels = new double[size];
         vels[0] = 0.0;
