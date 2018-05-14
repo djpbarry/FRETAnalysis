@@ -47,9 +47,8 @@ import java.io.OutputStreamWriter;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-import ui.SegUI;
 
-public class Ratiometric_Assay {
+public class RatiometricAnalyser {
 
     private final String title = "Ratiometric Assay Analyser", um = String.format("%c%c", IJ.micronSymbol, 'm');
     private static double spatialRes, timeRes, threshold = 0.5;
@@ -58,15 +57,6 @@ public class Ratiometric_Assay {
     private static double maskBlurRadius = 1.0;
     private static double sigBlurRadius = 20.0;
     private static int holeSize = 10;
-
-    public static void main(String args[]) {
-
-        java.awt.EventQueue.invokeLater(new Runnable() {
-            public void run() {
-                new SegUI(maskBlurRadius, threshMethod, holeSize).setVisible(true);
-            }
-        });
-    }
 
     public void analyse(ImageStack stack1, ImageStack stack2) {
         if (!showDialog()) {

@@ -16,7 +16,7 @@
  */
 package ui;
 
-import RatiometricAssay.Ratiometric_Assay;
+import RatiometricAssay.RatiometricAnalyser;
 import UtilClasses.GenUtils;
 import ij.IJ;
 import ij.ImagePlus;
@@ -26,25 +26,29 @@ import ij.ImageStack;
  *
  * @author David Barry <david.barry at crick dot ac dot uk>
  */
-public class SegUI extends javax.swing.JFrame {
+public class RatiometricAssayFrame extends javax.swing.JFrame {
 
     private double maskBlurRadius;
     private String threshMethod;
     private int holeSize;
+    private double spatialRes, timeRes, threshold;
     private ImagePlus imp;
     private ImageStack stack1, stack2;
 
     /**
      * Creates new form NewJFrame
      */
-    public SegUI() {
-        this(1.0, "Triangle", 10);
+    public RatiometricAssayFrame() {
+        this(1.0, "Triangle", 10, 0.0, 0.0, 0.0);
     }
 
-    public SegUI(double maskBlurRadius, String threshMethod, int holeSize) {
+    public RatiometricAssayFrame(double maskBlurRadius, String threshMethod, int holeSize, double spatialRes, double timeRes, double threshold) {
         this.maskBlurRadius = maskBlurRadius;
         this.threshMethod = threshMethod;
         this.holeSize = holeSize;
+        this.spatialRes = spatialRes;
+        this.timeRes = timeRes;
+        this.threshold = threshold;
         getStacks();
         initComponents();
     }
@@ -69,6 +73,9 @@ public class SegUI extends javax.swing.JFrame {
         this.maskBlurRadius = Double.parseDouble(blurTextField.getText());
         this.threshMethod = (String) threshComboBox.getSelectedItem();
         this.holeSize = Integer.parseInt(holeSizeTextField.getText());
+        this.spatialRes = Double.parseDouble(spatialResTextField.getText());
+        this.timeRes = Double.parseDouble(timeResTextField.getText());
+        this.threshold = Double.parseDouble(thresholdTextField.getText());
     }
 
     public double getMaskBlurRadius() {
@@ -81,6 +88,18 @@ public class SegUI extends javax.swing.JFrame {
 
     public int getHoleSize() {
         return holeSize;
+    }
+
+    public double getSpatialRes() {
+        return spatialRes;
+    }
+
+    public double getTimeRes() {
+        return timeRes;
+    }
+
+    public double getThreshold() {
+        return threshold;
     }
 
     /**
@@ -102,8 +121,14 @@ public class SegUI extends javax.swing.JFrame {
         holeSizeLabel = new javax.swing.JLabel();
         blurLabel = new javax.swing.JLabel();
         blurTextField = new javax.swing.JTextField();
+        jLabel1 = new javax.swing.JLabel();
+        jLabel2 = new javax.swing.JLabel();
+        jLabel3 = new javax.swing.JLabel();
+        spatialResTextField = new javax.swing.JTextField();
+        timeResTextField = new javax.swing.JTextField();
+        thresholdTextField = new javax.swing.JTextField();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         getContentPane().setLayout(new java.awt.GridBagLayout());
 
         cancelButton.setText("Cancel");
@@ -113,23 +138,25 @@ public class SegUI extends javax.swing.JFrame {
             }
         });
         gridBagConstraints = new java.awt.GridBagConstraints();
-        gridBagConstraints.gridx = 4;
-        gridBagConstraints.gridy = 6;
-        gridBagConstraints.anchor = java.awt.GridBagConstraints.NORTHWEST;
-        gridBagConstraints.insets = new java.awt.Insets(71, 75, 2, 0);
+        gridBagConstraints.gridx = 2;
+        gridBagConstraints.gridy = 11;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
         getContentPane().add(cancelButton, gridBagConstraints);
 
-        previewButton.setText("Preview");
+        previewButton.setText("Preview Segmentation");
         previewButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 previewButtonActionPerformed(evt);
             }
         });
         gridBagConstraints = new java.awt.GridBagConstraints();
-        gridBagConstraints.gridx = 3;
-        gridBagConstraints.gridy = 6;
-        gridBagConstraints.anchor = java.awt.GridBagConstraints.NORTHWEST;
-        gridBagConstraints.insets = new java.awt.Insets(71, 37, 2, 0);
+        gridBagConstraints.gridx = 1;
+        gridBagConstraints.gridy = 3;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
         getContentPane().add(previewButton, gridBagConstraints);
 
         okButton.setText("OK");
@@ -139,93 +166,157 @@ public class SegUI extends javax.swing.JFrame {
             }
         });
         gridBagConstraints = new java.awt.GridBagConstraints();
-        gridBagConstraints.gridx = 1;
-        gridBagConstraints.gridy = 6;
-        gridBagConstraints.anchor = java.awt.GridBagConstraints.NORTHWEST;
-        gridBagConstraints.insets = new java.awt.Insets(71, 21, 2, 0);
+        gridBagConstraints.gridx = 0;
+        gridBagConstraints.gridy = 11;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
         getContentPane().add(okButton, gridBagConstraints);
 
         threshLabel.setText("Thresholding Method");
         gridBagConstraints = new java.awt.GridBagConstraints();
         gridBagConstraints.gridx = 0;
-        gridBagConstraints.gridy = 4;
-        gridBagConstraints.gridwidth = 3;
-        gridBagConstraints.ipadx = 75;
-        gridBagConstraints.anchor = java.awt.GridBagConstraints.NORTHWEST;
-        gridBagConstraints.insets = new java.awt.Insets(74, 0, 0, 0);
+        gridBagConstraints.gridy = 2;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.WEST;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
         getContentPane().add(threshLabel, gridBagConstraints);
 
-        threshComboBox.setModel(new javax.swing.DefaultComboBoxModel<>(Ratiometric_Assay.THRESH_METHODS));
+        threshComboBox.setModel(new javax.swing.DefaultComboBoxModel<>(RatiometricAssay.RatiometricAnalyser.THRESH_METHODS));
         threshComboBox.setSelectedItem(threshMethod);
         gridBagConstraints = new java.awt.GridBagConstraints();
-        gridBagConstraints.gridx = 3;
-        gridBagConstraints.gridy = 4;
-        gridBagConstraints.gridwidth = 3;
-        gridBagConstraints.gridheight = 2;
-        gridBagConstraints.ipadx = 258;
-        gridBagConstraints.anchor = java.awt.GridBagConstraints.NORTHWEST;
-        gridBagConstraints.insets = new java.awt.Insets(71, 0, 0, 0);
+        gridBagConstraints.gridx = 1;
+        gridBagConstraints.gridy = 2;
+        gridBagConstraints.gridwidth = 2;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.EAST;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
         getContentPane().add(threshComboBox, gridBagConstraints);
 
         holeSizeTextField.setText(String.valueOf(holeSize));
         gridBagConstraints = new java.awt.GridBagConstraints();
-        gridBagConstraints.gridx = 3;
-        gridBagConstraints.gridy = 2;
-        gridBagConstraints.gridwidth = 3;
-        gridBagConstraints.gridheight = 2;
-        gridBagConstraints.ipadx = 280;
-        gridBagConstraints.anchor = java.awt.GridBagConstraints.NORTHWEST;
-        gridBagConstraints.insets = new java.awt.Insets(71, 0, 0, 0);
+        gridBagConstraints.gridx = 1;
+        gridBagConstraints.gridy = 1;
+        gridBagConstraints.gridwidth = 2;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.EAST;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
         getContentPane().add(holeSizeTextField, gridBagConstraints);
 
         holeSizeLabel.setText("Hole Size");
         gridBagConstraints = new java.awt.GridBagConstraints();
         gridBagConstraints.gridx = 0;
-        gridBagConstraints.gridy = 2;
-        gridBagConstraints.anchor = java.awt.GridBagConstraints.NORTHWEST;
-        gridBagConstraints.insets = new java.awt.Insets(74, 0, 0, 0);
+        gridBagConstraints.gridy = 1;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.WEST;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
         getContentPane().add(holeSizeLabel, gridBagConstraints);
 
         blurLabel.setText("Blur Radius");
         gridBagConstraints = new java.awt.GridBagConstraints();
         gridBagConstraints.gridx = 0;
         gridBagConstraints.gridy = 0;
-        gridBagConstraints.gridwidth = 3;
-        gridBagConstraints.ipadx = 122;
-        gridBagConstraints.anchor = java.awt.GridBagConstraints.NORTHWEST;
-        gridBagConstraints.insets = new java.awt.Insets(5, 0, 0, 0);
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.WEST;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
         getContentPane().add(blurLabel, gridBagConstraints);
 
         blurTextField.setText(String.valueOf(maskBlurRadius));
         gridBagConstraints = new java.awt.GridBagConstraints();
-        gridBagConstraints.gridx = 3;
+        gridBagConstraints.gridx = 1;
         gridBagConstraints.gridy = 0;
-        gridBagConstraints.gridwidth = 3;
-        gridBagConstraints.gridheight = 2;
-        gridBagConstraints.ipadx = 280;
-        gridBagConstraints.anchor = java.awt.GridBagConstraints.NORTHWEST;
-        gridBagConstraints.insets = new java.awt.Insets(2, 0, 0, 0);
+        gridBagConstraints.gridwidth = 2;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.EAST;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
         getContentPane().add(blurTextField, gridBagConstraints);
+
+        jLabel1.setText("Spatial Resolution");
+        gridBagConstraints = new java.awt.GridBagConstraints();
+        gridBagConstraints.gridx = 0;
+        gridBagConstraints.gridy = 4;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.LINE_START;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
+        getContentPane().add(jLabel1, gridBagConstraints);
+
+        jLabel2.setText("Frame Rate");
+        gridBagConstraints = new java.awt.GridBagConstraints();
+        gridBagConstraints.gridx = 0;
+        gridBagConstraints.gridy = 5;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.LINE_START;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
+        getContentPane().add(jLabel2, gridBagConstraints);
+
+        jLabel3.setText("Active Threshold");
+        gridBagConstraints = new java.awt.GridBagConstraints();
+        gridBagConstraints.gridx = 0;
+        gridBagConstraints.gridy = 6;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.LINE_START;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
+        getContentPane().add(jLabel3, gridBagConstraints);
+
+        spatialResTextField.setText(String.valueOf(spatialRes));
+        gridBagConstraints = new java.awt.GridBagConstraints();
+        gridBagConstraints.gridx = 1;
+        gridBagConstraints.gridy = 4;
+        gridBagConstraints.gridwidth = 2;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.LINE_END;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
+        getContentPane().add(spatialResTextField, gridBagConstraints);
+
+        timeResTextField.setText(String.valueOf(timeRes));
+        gridBagConstraints = new java.awt.GridBagConstraints();
+        gridBagConstraints.gridx = 1;
+        gridBagConstraints.gridy = 5;
+        gridBagConstraints.gridwidth = 2;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.LINE_END;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
+        getContentPane().add(timeResTextField, gridBagConstraints);
+
+        thresholdTextField.setText(String.valueOf(threshold));
+        gridBagConstraints = new java.awt.GridBagConstraints();
+        gridBagConstraints.gridx = 1;
+        gridBagConstraints.gridy = 6;
+        gridBagConstraints.gridwidth = 2;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.LINE_END;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
+        getContentPane().add(thresholdTextField, gridBagConstraints);
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
     private void cancelButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cancelButtonActionPerformed
         cleanUp();
-        System.exit(0);
     }//GEN-LAST:event_cancelButtonActionPerformed
 
     private void previewButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_previewButtonActionPerformed
         setVariables();
-        imp = new ImagePlus("Preview Segmentation", Ratiometric_Assay.makeBinaryStack(stack1, maskBlurRadius, threshMethod, holeSize));
+        imp = new ImagePlus("Preview Segmentation", RatiometricAnalyser.makeBinaryStack(stack1, maskBlurRadius, threshMethod, holeSize));
         imp.show();
     }//GEN-LAST:event_previewButtonActionPerformed
 
     private void okButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_okButtonActionPerformed
         setVariables();
         cleanUp();
-        new Ratiometric_Assay().analyse(stack1, stack2);
-        System.exit(0);
+        new RatiometricAnalyser().analyse(stack1, stack2);
     }//GEN-LAST:event_okButtonActionPerformed
     void cleanUp() {
         if (imp != null) {
@@ -276,9 +367,15 @@ public class SegUI extends javax.swing.JFrame {
     private javax.swing.JButton cancelButton;
     private javax.swing.JLabel holeSizeLabel;
     private javax.swing.JTextField holeSizeTextField;
+    private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel2;
+    private javax.swing.JLabel jLabel3;
     private javax.swing.JButton okButton;
     private javax.swing.JButton previewButton;
+    private javax.swing.JTextField spatialResTextField;
     private javax.swing.JComboBox<String> threshComboBox;
     private javax.swing.JLabel threshLabel;
+    private javax.swing.JTextField thresholdTextField;
+    private javax.swing.JTextField timeResTextField;
     // End of variables declaration//GEN-END:variables
 }
