@@ -21,6 +21,7 @@ import UtilClasses.GenUtils;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.process.AutoThresholder;
 
 /**
  *
@@ -28,10 +29,10 @@ import ij.ImageStack;
  */
 public class RatiometricAssayFrame extends javax.swing.JFrame {
 
-    private double maskBlurRadius, sigBlurRadius;
-    private String threshMethod;
-    private int holeSize;
-    private double spatialRes, timeRes, threshold;
+    private static double maskBlurRadius = 1.0, sigBlurRadius = 20.0;
+    private static String threshMethod = AutoThresholder.Method.Triangle.toString();
+    private static int holeSize = 10;
+    private static double spatialRes, timeRes, threshold = 0.5;
     private ImagePlus imp;
     private ImageStack stack1, stack2;
 
@@ -39,16 +40,6 @@ public class RatiometricAssayFrame extends javax.swing.JFrame {
      * Creates new form NewJFrame
      */
     public RatiometricAssayFrame() {
-        this(1.0, "Triangle", 10, 0.0, 0.0, 0.0);
-    }
-
-    public RatiometricAssayFrame(double maskBlurRadius, String threshMethod, int holeSize, double spatialRes, double timeRes, double threshold) {
-        this.maskBlurRadius = maskBlurRadius;
-        this.threshMethod = threshMethod;
-        this.holeSize = holeSize;
-        this.spatialRes = spatialRes;
-        this.timeRes = timeRes;
-        this.threshold = threshold;
         getStacks();
         initComponents();
     }
@@ -352,42 +343,6 @@ public class RatiometricAssayFrame extends javax.swing.JFrame {
         }
         this.dispose();
     }
-
-    /**
-     * @param args the command line arguments
-     */
-//    public static void main(String args[]) {
-//        /* Set the Nimbus look and feel */
-//        //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
-//        /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
-//         * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html 
-//         */
-//        try {
-//            for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
-//                if ("Nimbus".equals(info.getName())) {
-//                    javax.swing.UIManager.setLookAndFeel(info.getClassName());
-//                    break;
-//                }
-//            }
-//        } catch (ClassNotFoundException ex) {
-//            java.util.logging.Logger.getLogger(SegUI.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-//        } catch (InstantiationException ex) {
-//            java.util.logging.Logger.getLogger(SegUI.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-//        } catch (IllegalAccessException ex) {
-//            java.util.logging.Logger.getLogger(SegUI.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-//        } catch (javax.swing.UnsupportedLookAndFeelException ex) {
-//            java.util.logging.Logger.getLogger(SegUI.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-//        }
-//        //</editor-fold>
-//        //</editor-fold>
-//
-//        /* Create and display the form */
-//        java.awt.EventQueue.invokeLater(new Runnable() {
-//            public void run() {
-//                new SegUI().setVisible(true);
-//            }
-//        });
-//    }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JLabel blurLabel;

@@ -17,7 +17,6 @@
 package RatiometricAssay;
 
 import ij.plugin.PlugIn;
-import ij.process.AutoThresholder;
 import ui.RatiometricAssayFrame;
 
 /**
@@ -26,11 +25,6 @@ import ui.RatiometricAssayFrame;
  */
 public class Ratiometric_Analysis implements PlugIn {
 
-    private static double maskBlurRadius = 1.0;
-    private static String threshMethod = AutoThresholder.Method.Triangle.toString();
-    private static int holeSize = 10;
-    private static double spatialRes, timeRes, threshold = 0.5;
-
     public static void main(String args[]) {
         new Ratiometric_Analysis().run(null);
     }
@@ -38,7 +32,7 @@ public class Ratiometric_Analysis implements PlugIn {
     public void run(String args) {
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
-                new RatiometricAssayFrame(maskBlurRadius, threshMethod, holeSize, spatialRes, timeRes, threshold).setVisible(true);
+                new RatiometricAssayFrame().setVisible(true);
             }
         });
     }
