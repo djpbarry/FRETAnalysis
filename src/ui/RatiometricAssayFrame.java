@@ -28,7 +28,7 @@ import ij.ImageStack;
  */
 public class RatiometricAssayFrame extends javax.swing.JFrame {
 
-    private double maskBlurRadius;
+    private double maskBlurRadius, sigBlurRadius;
     private String threshMethod;
     private int holeSize;
     private double spatialRes, timeRes, threshold;
@@ -75,6 +75,7 @@ public class RatiometricAssayFrame extends javax.swing.JFrame {
         this.holeSize = Integer.parseInt(holeSizeTextField.getText());
         this.spatialRes = Double.parseDouble(spatialResTextField.getText());
         this.timeRes = Double.parseDouble(timeResTextField.getText());
+        this.sigBlurRadius = Double.parseDouble(sigBlurTextField.getText());
         this.threshold = Double.parseDouble(thresholdTextField.getText());
     }
 
@@ -127,6 +128,8 @@ public class RatiometricAssayFrame extends javax.swing.JFrame {
         spatialResTextField = new javax.swing.JTextField();
         timeResTextField = new javax.swing.JTextField();
         thresholdTextField = new javax.swing.JTextField();
+        sigBlurRadiusLabel = new javax.swing.JLabel();
+        sigBlurTextField = new javax.swing.JTextField();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         getContentPane().setLayout(new java.awt.GridBagLayout());
@@ -264,7 +267,7 @@ public class RatiometricAssayFrame extends javax.swing.JFrame {
         jLabel3.setText("Active Threshold");
         gridBagConstraints = new java.awt.GridBagConstraints();
         gridBagConstraints.gridx = 0;
-        gridBagConstraints.gridy = 6;
+        gridBagConstraints.gridy = 7;
         gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
         gridBagConstraints.anchor = java.awt.GridBagConstraints.LINE_START;
         gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
@@ -293,12 +296,35 @@ public class RatiometricAssayFrame extends javax.swing.JFrame {
         thresholdTextField.setText(String.valueOf(threshold));
         gridBagConstraints = new java.awt.GridBagConstraints();
         gridBagConstraints.gridx = 1;
-        gridBagConstraints.gridy = 6;
+        gridBagConstraints.gridy = 7;
         gridBagConstraints.gridwidth = 2;
         gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
         gridBagConstraints.anchor = java.awt.GridBagConstraints.LINE_END;
         gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
         getContentPane().add(thresholdTextField, gridBagConstraints);
+
+        sigBlurRadiusLabel.setText("Signal Map Blur Radius");
+        gridBagConstraints = new java.awt.GridBagConstraints();
+        gridBagConstraints.gridx = 0;
+        gridBagConstraints.gridy = 6;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.LINE_START;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
+        getContentPane().add(sigBlurRadiusLabel, gridBagConstraints);
+
+        sigBlurTextField.setText(String.valueOf(sigBlurRadius));
+        gridBagConstraints = new java.awt.GridBagConstraints();
+        gridBagConstraints.gridx = 1;
+        gridBagConstraints.gridy = 6;
+        gridBagConstraints.gridwidth = 2;
+        gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gridBagConstraints.anchor = java.awt.GridBagConstraints.LINE_END;
+        gridBagConstraints.weightx = 1.0;
+        gridBagConstraints.weighty = 1.0;
+        gridBagConstraints.insets = new java.awt.Insets(10, 10, 10, 10);
+        getContentPane().add(sigBlurTextField, gridBagConstraints);
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
@@ -316,8 +342,10 @@ public class RatiometricAssayFrame extends javax.swing.JFrame {
     private void okButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_okButtonActionPerformed
         setVariables();
         cleanUp();
-        new RatiometricAnalyser().analyse(stack1, stack2);
+        RatiometricAnalyser ra = new RatiometricAnalyser(maskBlurRadius, sigBlurRadius, threshMethod, holeSize, spatialRes, timeRes, threshold);
+        ra.analyse(stack1, stack2);
     }//GEN-LAST:event_okButtonActionPerformed
+
     void cleanUp() {
         if (imp != null) {
             imp.close();
@@ -372,6 +400,8 @@ public class RatiometricAssayFrame extends javax.swing.JFrame {
     private javax.swing.JLabel jLabel3;
     private javax.swing.JButton okButton;
     private javax.swing.JButton previewButton;
+    private javax.swing.JLabel sigBlurRadiusLabel;
+    private javax.swing.JTextField sigBlurTextField;
     private javax.swing.JTextField spatialResTextField;
     private javax.swing.JComboBox<String> threshComboBox;
     private javax.swing.JLabel threshLabel;

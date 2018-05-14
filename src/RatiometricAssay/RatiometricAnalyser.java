@@ -18,8 +18,8 @@ package RatiometricAssay;
 
 import Binary.BinaryMaker;
 import Binary.EDMMaker;
+import IO.DataWriter;
 import ImageProcessing.ImageBlurrer;
-import MetaData.ParamsReader;
 import Profile.PeakFinder;
 import UtilClasses.GenUtils;
 import UtilClasses.GenVariables;
@@ -27,7 +27,6 @@ import UtilClasses.Utilities;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.gui.GenericDialog;
 import ij.gui.Plot;
 import ij.plugin.LutLoader;
 import ij.process.AutoThresholder;
@@ -51,17 +50,24 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 public class RatiometricAnalyser {
 
     private final String title = "Ratiometric Assay Analyser", um = String.format("%c%c", IJ.micronSymbol, 'm');
-    private static double spatialRes, timeRes, threshold = 0.5;
+    private final double spatialRes, timeRes, threshold;
     public static final String[] THRESH_METHODS = AutoThresholder.getMethods();
-    private static String threshMethod = AutoThresholder.Method.Triangle.toString();
-    private static double maskBlurRadius = 1.0;
-    private static double sigBlurRadius = 20.0;
-    private static int holeSize = 10;
+    private final String threshMethod;
+    private final double maskBlurRadius;
+    private final double sigBlurRadius;
+    private final int holeSize;
+
+    public RatiometricAnalyser(double maskBlurRadius, double sigBlurRadius, String threshMethod, int holeSize, double spatialRes, double timeRes, double threshold) {
+        this.maskBlurRadius = maskBlurRadius;
+        this.threshMethod = threshMethod;
+        this.holeSize = holeSize;
+        this.spatialRes = spatialRes;
+        this.timeRes = timeRes;
+        this.threshold = threshold;
+        this.sigBlurRadius = sigBlurRadius;
+    }
 
     public void analyse(ImageStack stack1, ImageStack stack2) {
-        if (!showDialog()) {
-            return;
-        }
         String resultsDir;
         try {
             resultsDir = GenUtils.openResultsDirectory(String.format("%s%s%s",
@@ -96,7 +102,10 @@ public class RatiometricAnalyser {
         IJ.saveAs(outputImp, "TIF", String.format("%s%s%s", resultsDir, File.separator, "output.tif"));
         try {
             double[][] data = indexWithDistanceMap(output, edmStack, resultsDir);
-            plotProfilePoints(data, resultsDir);
+            double[][] smoothedData = PeakFinder.smoothData2D(data, sigBlurRadius);
+            File map = new File(String.format("%s%s%s", resultsDir, File.separator, "Map.csv"));
+            DataWriter.saveValues(smoothedData, map, null, null, false);
+            plotProfilePoints(smoothedData, resultsDir);
         } catch (Exception e) {
             GenUtils.error(e.toString());
             return;
@@ -140,8 +149,6 @@ public class RatiometricAnalyser {
     }
 
     double[][] indexWithDistanceMap(ImageStack stack, ImageStack edmStack, String dir) throws IOException, FileNotFoundException {
-        File output = new File(String.format("%s%s%s", dir, File.separator, "Map.csv"));
-        CSVPrinter printer = new CSVPrinter(new OutputStreamWriter(new FileOutputStream(output), GenVariables.ISO), CSVFormat.EXCEL);
         int n = stack.size();
         StackStatistics stats = new StackStatistics(new ImagePlus("", edmStack));
         int maxDist = (int) Math.round(stats.max);
@@ -159,62 +166,31 @@ public class RatiometricAnalyser {
                     data[i - 1][edmDist] = slice.getPixelValue(x, y);
                 }
             }
-            for (int j = 0; j < maxDist; j++) {
-                printer.print(String.valueOf(data[i - 1][j]));
-            }
-            printer.println();
         }
-        printer.close();
         return data;
     }
 
-    void plotProfilePoints(double[][] data, String dir) throws IOException, FileNotFoundException {
+    void plotProfilePoints(double[][] smoothedData, String dir) throws IOException, FileNotFoundException {
         File output = new File(String.format("%s%s%s", dir, File.separator, "ProfilePoints.csv"));
         CSVPrinter printer = new CSVPrinter(new OutputStreamWriter(new FileOutputStream(output), GenVariables.ISO), CSVFormat.EXCEL);
         printer.printRecord("Time (s)", "x1 " + um, "x2 " + um, "Width " + um);
-        double[][] smoothedData = PeakFinder.smoothData(data, sigBlurRadius);
         double[] extrema = PeakFinder.findMinAndMax(smoothedData);
-        for (int i = 0; i < data.length; i++) {
+        for (int i = 0; i < smoothedData.length; i++) {
             printer.print(i * timeRes);
             int[] indices = PeakFinder.findRegionWidth(smoothedData[i], threshold, extrema[0], extrema[1]);
             for (int j = 0; j < indices.length; j++) {
-                if (indices[j] > 0) {
+                if (indices[j] >= 0) {
                     printer.print(indices[j] * spatialRes);
                 } else {
                     printer.print("not found");
                 }
             }
-            if (indices[0] > 0 && indices[1] > 0) {
+            if (indices[0] >= 0 && indices[1] >= 0) {
                 printer.print((indices[1] - indices[0]) * spatialRes);
             }
             printer.println();
         }
         printer.close();
-    }
-
-    boolean showDialog() {
-        GenericDialog gd = new GenericDialog(title);
-        gd.addNumericField("Spatial Resolution:", spatialRes, 3, 5, um);
-        gd.addNumericField("Frame Interval:", timeRes, 3, 5, "seconds");
-        gd.addNumericField("Active Threshold:", threshold, 3, 5, "");
-        gd.showDialog();
-        if (gd.wasCanceled()) {
-            return false;
-        }
-        spatialRes = gd.getNextNumber();
-        timeRes = gd.getNextNumber();
-        threshold = gd.getNextNumber();
-        if (gd.wasOKed()) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    void readParamsFromImage(ImagePlus imp) {
-        ParamsReader reader = new ParamsReader(imp);
-        spatialRes = reader.getSpatialRes();
-        timeRes = reader.getFrameRate();
     }
 
     private double[] estimateVelocity(ImageStack edm) {
