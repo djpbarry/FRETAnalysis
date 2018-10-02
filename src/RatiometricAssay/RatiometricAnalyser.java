@@ -120,7 +120,7 @@ public class RatiometricAnalyser {
 
     ImageStack makeEDMStack(ImageStack input, String directory) {
         ImageStack binary = makeBinaryStack(input, maskBlurRadius, threshMethod, holeSize);
-        ImageStack output = EDMMaker.makeEDM(binary);
+        ImageStack output = EDMMaker.makeEDMStack(binary);
         IJ.saveAs(new ImagePlus("", output), "TIF", String.format("%s%s%s", directory, File.separator, "EDM"));
         return output;
     }
